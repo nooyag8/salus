@@ -1,0 +1,88 @@
+/* 기본 스타일 초기화 및 배경 설정 */
+body {
+    margin: 0;
+    padding: 0;
+    font-family: "Pinyon Script", cursive;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background-color: #f8f9fa;
+}
+
+
+.signup-container {
+    background-color: #F1F1F1;
+    padding: 2.5rem;
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    width: 400px; 
+    text-align: center;
+}
+
+/* 제목 Salus 스타일 */
+h1 {
+    color: #298FEE;
+    font-family: "Pinyon Script", cursive;
+    font-size: 3rem;
+    margin-top: 0;
+    margin-bottom:2rem;
+}
+
+/* 폼 스타일 */
+form {
+    display: flex;
+    flex-direction: column;
+}
+
+/* 폼 입력 그룹 */
+.form-group {
+    margin-bottom: 1.2rem;
+}
+
+/* 닉네임(아이디) 입력 그룹 */
+.nickname-group {
+    display: flex;
+    align-items: center; 
+}
+
+.nickname-group label {
+    font-size: 0.9rem;
+    color: #495057;
+    margin-right: 1rem; 
+    flex-shrink: 0; 
+}
+
+/* 입력창 스타일 */
+.form-input {
+    width: 100%;
+    padding: 15px 15px;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    font-size: 1rem;
+    box-sizing: border-box;
+}
+
+.form-input::placeholder {
+    color: #ced4da;
+}
+
+/* 회원가입 버튼 */
+.signup-button {
+    width: 100%; 
+    background-color: #298FEE;
+    color: white;
+    border: none;
+    padding: 15px 15px;
+    border-radius: 10px;
+    font-size: 1.1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    margin-top: 1.5rem; 
+}
+
+/* 마우스 올리면 색 바뀜 */
+.signup-button:hover {
+    background-color: #0857AB;
+}
