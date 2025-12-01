@@ -4,7 +4,7 @@ import './Dashboard.css';
 import Score from './component/Score';
 import PlanList from './component/PlanList';
 import Bmi from './component/Bmi';
-import Stats from './component/Stats';
+import Stats from './component/Stats'; // dashboard에 위 4개와 연결
 
 const Dashboard = () => {
   return (
@@ -38,5 +38,6 @@ const Dashboard = () => {
     </div>
   );
 };
+
 
 export default Dashboard;
