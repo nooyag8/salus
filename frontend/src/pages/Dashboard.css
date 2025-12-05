@@ -1,0 +1,48 @@
+.dashboard-layout {
+  display: flex;
+  gap: 24px;
+  height: 100vh;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+/* 왼쪽 구역 */
+.main-zone {
+  flex: 7;
+  display: flex;
+  flex-direction: column; 
+  gap: 24px;
+}
+
+/* 상단 구역*/
+.top-card-zone {
+  flex: 4; 
+  background-color: #f0f0f0; 
+  border-radius: 16px;
+}
+
+/* 밑에 구역 */
+.bottom-split-zone {
+  flex: 6; 
+  display: flex; 
+  gap: 24px;
+}
+
+.plan-zone {
+  flex: 1; 
+  background-color: #f0f0f0;
+  border-radius: 16px;
+}
+
+.bmi-zone {
+  flex: 1; 
+  background-color: #f0f0f0;
+  border-radius: 16px;
+}
+
+/* 오른쪽 구역 */
+.sidebar-zone {
+  flex: 3;
+  background-color: #000000;
+  border-radius: 16px;
+}
