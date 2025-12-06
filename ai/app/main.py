@@ -74,9 +74,9 @@ def predict(data: PredictRequest):
     health_score = float(model_health.predict(features)[0])
     cond_str = data.condition.lower()
     
-    if cond_str in ["good", "great", "excellent"]:
+    if cond_str in ["good", "great", "excellent", "soso", "well"]:
         health_score += 20 
-    elif cond_str in ["bad", "tired", "pain", "severe"]:
+    elif cond_str in ["bad", "tired", "exhausted", "indigestion","cold", "flu"]:
         health_score -= 20  
     
     health_score = max(0, min(100, health_score))
