@@ -1,24 +1,28 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-import pandas as pd
+import numpy as np
 import joblib
 import os
 
-MODEL_PATH = os.path.join(os.path.dirname(__file__), "../models")
-health_model = joblib.load(os.path.join(MODEL_PATH, "health_model.pkl"))
-ex_model = joblib.load(os.path.join(MODEL_PATH, "exercise_model.pkl"))
-supp_model = joblib.load(os.path.join(MODEL_PATH, "supp_model.pkl"))
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(BASE_DIR, "..", "models")
+
+model_health = joblib.load(os.path.join(MODEL_PATH, "model_health.pkl"))
+model_sleep = joblib.load(os.path.join(MODEL_PATH, "model_sleep.pkl"))
+model_ex_type = joblib.load(os.path.join(MODEL_PATH, "model_ex_type.pkl"))
+model_ex_time = joblib.load(os.path.join(MODEL_PATH, "model_ex_time.pkl"))
+model_supps = joblib.load(os.path.join(MODEL_PATH, "model_supps.pkl"))
 
 le_gender = joblib.load(os.path.join(MODEL_PATH, "le_gender.pkl"))
-le_exercised = joblib.load(os.path.join(MODEL_PATH, "le_exercised.pkl"))
 le_condition = joblib.load(os.path.join(MODEL_PATH, "le_condition.pkl"))
-le_exercise_rec = joblib.load(os.path.join(MODEL_PATH, "le_exercise_rec.pkl"))
+le_ex_type = joblib.load(os.path.join(MODEL_PATH, "le_ex_type.pkl"))
+mlb = joblib.load(os.path.join(MODEL_PATH, "supplement_encoder.pkl"))
 
-supplements_classes = joblib.load(os.path.join(MODEL_PATH, "supplements_classes.pkl"))
 
-app = FastAPI()
+app = FastAPI(title="AI Health Recommendation API")
 
-class CreateLogDto(BaseModel):
+
+class PredictRequest(BaseModel):
     userId: int
     date: str
     gender: str
@@ -31,89 +35,112 @@ class CreateLogDto(BaseModel):
     exercised: str
     condition: str
 
-class AiResultDto(BaseModel):
-    userId: int
-    date: str
-    finalConditionScore: float
-    recommendations: list
+def preprocess_input(data: PredictRequest):
+    if data.exercised.lower() == "none":
+        ex_type = "none"
+        ex_minutes = 0
+    else:
+        try:
+            parts = data.exercised.split("_")
+            ex_type = parts[0]
+            ex_minutes = int(parts[1])
+        except:
+            ex_type = "none"
+            ex_minutes = 0
 
-# Post-processing 
-def postprocess_recommendations(row, exercise_pred, supp_pred):
-    step = row['step_number']
-    age = row['age']
-    condition = row['condition']
-    exercise = exercise_pred
-    supps = list(supp_pred)
+    try:
+        gender_enc = le_gender.transform([data.gender])[0]
+        cond_enc = le_condition.transform([data.condition])[0]
+        ex_type_enc = le_ex_type.transform([ex_type])[0]
+    except ValueError as e:
+        print(f"Encoding Error: {e}")
+        gender_enc, cond_enc, ex_type_enc = 0, 0, 0
 
-    # 나이, 걸음, 컨디션 기반 조정
-    if age >= 60 and exercise in ['run_20','run_30','strength_30','strength_60','cardio_30','cardio_60']:
-        exercise = "walk_20"
-    if step > 15000:
-        exercise = "walk_20"
-    elif step < 2000 and exercise in ['run_20','run_30','strength_30','strength_60']:
-        exercise = 'walk_30'
-    if condition in ['indigestion','tired','cold','flu','exhausted'] and exercise not in ['stretch_15','yoga_20']:
-        exercise = "None"
-
-    # 컨디션 기반 영양제
-    if condition == 'indigestion' and 'probiotics' not in supps:
-        supps.append('probiotics')
-    if condition == 'tired' and 'magnesium' not in supps:
-        supps.append('magnesium')
-    if condition == 'cold' and 'vitamin_c' not in supps:
-        supps.append('vitamin_c')
-
-    # 나이 기반 추천
-    if age >= 50:
-        for s in ['calcium', 'vitamin_d']:
-            if s not in supps:
-                supps.append(s)
-
-    # 같이 먹으면 안 되는 조합
-    if 'probiotics' in supps and 'vitamin_c' in supps:
-        supps.remove('vitamin_c')
-    if 'iron' in supps and 'calcium' in supps:
-        supps.remove('calcium')
-
-    return exercise, supps
-
-
-@app.post("/predict", response_model=AiResultDto)
-def predict_health(data: CreateLogDto):
-    BMI = data.weight / (data.height / 100) ** 2
+    bmi = data.weight / ((data.height / 100) ** 2)
     weight_diff = data.weight - data.goal_weight
-    row = {
-        "gender_enc": le_gender.transform([data.gender])[0],
-        "age": data.age,
-        "height": data.height,
-        "weight": data.weight,
-        "BMI": BMI,
-        "weight_diff": weight_diff,
-        "step_number": data.step_number,
-        "sleep_time": data.sleep_time,
-        "exercised_enc": le_exercised.transform([data.exercised])[0],
-        "condition_enc": le_condition.transform([data.condition])[0],
-    }
-    df_row = pd.DataFrame([row])
 
-    # 예측
-    health_pred = float(health_model.predict(df_row)[0])
-    ex_pred_label = le_exercise_rec.inverse_transform([ex_model.predict(df_row)[0]])[0]
-    supp_pred = [supplements_classes[i] for i, v in enumerate(supp_model.predict(df_row)[0]) if v == 1]
+    features_list = [
+        gender_enc, data.age, data.height, data.weight, bmi, weight_diff,
+        data.step_number, data.sleep_time, cond_enc, ex_type_enc, ex_minutes
+    ]
+    
+    features = np.array(features_list, dtype=float).reshape(1, -1)
+    return features, ex_type, ex_minutes
 
-    ex_final, supp_final = postprocess_recommendations(
-        {"age": data.age, "step_number": data.step_number, "condition": data.condition},
-        ex_pred_label, supp_pred
-    )
+@app.post("/predict")
+def predict(data: PredictRequest):
+    features, ex_type, ex_minutes = preprocess_input(data)
 
-    full_recs = [
-        {"category": "exercise", "content": ex_final},
-        {"category": "supplements", "content": ", ".join(supp_final)}
+    health_score = float(model_health.predict(features)[0])
+    cond_str = data.condition.lower()
+    
+    if cond_str in ["good", "great", "excellent"]:
+        health_score += 20 
+    elif cond_str in ["bad", "tired", "pain", "severe"]:
+        health_score -= 20  
+    
+    health_score = max(0, min(100, health_score))
+    
+    rec_sleep = int(model_sleep.predict(features)[0])
+    rec_ex_type = model_ex_type.predict(features)[0]
+    rec_ex_time = int(model_ex_time.predict(features)[0])
+
+    if data.sleep_time < 4:
+        rec_ex_type = "stretching"
+        rec_ex_time = 20
+        health_score = max(0, health_score - 10)
+
+    negative_conditions = ['bad', 'severe', 'pain', 'tired']
+    if data.step_number >= 20000 and data.condition.lower() in negative_conditions:
+        rec_ex_type = "rest"
+        rec_ex_time = 0
+    
+    if health_score < 40 and rec_ex_type != "rest":
+        if rec_ex_type in ['cardio', 'strength', 'crossfit']:
+            rec_ex_type = "yoga"
+            rec_ex_time = min(rec_ex_time, 15)
+
+    supp_probs = model_supps.predict_proba(features)
+    top_supps = []
+    for i, clf in enumerate(model_supps.estimators_):
+        prob = supp_probs[i][0][1] if len(supp_probs[i][0]) > 1 else 0
+        top_supps.append((mlb.classes_[i], prob))
+
+    top_supps = sorted(top_supps, key=lambda x: x[1], reverse=True)
+    ranked_supps = [s[0] for s in top_supps]
+
+    conflict_rules = [
+        ("iron", "calcium"),
+        ("omega3", "vitamin_e"),
+        ("magnesium", "calcium"),
+        ("vitamin_c", "iron"),
+    ]
+    def has_conflict(a, b):
+        return (a, b) in conflict_rules or (b, a) in conflict_rules
+
+
+    chosen = []
+    for s in ranked_supps:
+        if len(chosen) >= 3:
+            break
+        
+        conflict = any(has_conflict(s, cs) for cs in chosen)
+        
+        if not conflict:
+            chosen.append(s)
+            
+    rec_supplements = chosen
+
+    recommendations = [
+        {"category": "health_score", "content": round(health_score, 2)},
+        {"category": "sleep_time", "content": f"{rec_sleep}"},
+        {"category": "exercise", "content": f"{rec_ex_type}_{rec_ex_time}"},
+        {"category": "supplements", "content": rec_supplements},
     ]
 
-    return AiResultDto(
-        userId=data.userId,
-        date=data.date,
-        finalConditionScore=round(health_pred, 2),
-        recommendations=full_recs
-    )
+    return {
+        "userId": data.userId,
+        "date": data.date,
+        "finalConditionScore": round(health_score, 2),
+        "recommendations": recommendations
+    }
